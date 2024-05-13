@@ -73,6 +73,7 @@ def main(args):
             if agent_obs is None:
                 continue
             print('--------GETTING ALL THE EMBEDDINGS in run.py----------')
+            # actions[idx] = agents[idx].act(agent_obs)
             print(agents[idx].get_embeddings(agent_obs))
             print('--------GETTING ALL THE EMBEDDINGS in run.py----------')
         obs, rewards, dones, info = env.step(actions)

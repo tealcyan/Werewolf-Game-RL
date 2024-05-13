@@ -5,6 +5,7 @@ import time
 import openai
 from src.agent import VanillaLanguageAgent
 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,6 +15,70 @@ def scaled_dot_product_attention(query, keys, values):
     weights = F.softmax(scores, dim=-1)  # Normalize the scores to get attention weights
     output = torch.matmul(weights, values)  # Weighted sum of the values
     return output, weights
+
+# Define the Critic Class
+class ActorNetwork(nn.Module):
+    def __init__(self, embed_size=1536, heads=12):
+        super(ActorNetwork, self).__init__()
+        self.embed_size = embed_size
+        self.heads = heads
+        self.values = nn.Linear(embed_size, embed_size, bias=False)
+        self.keys = nn.Linear(embed_size, embed_size, bias=False)
+        self.queries = nn.Linear(embed_size, embed_size, bias=False)
+        self.fc_out = nn.Linear(embed_size, embed_size)
+        self.norm = nn.LayerNorm(embed_size)  # Layer normalization
+
+    def forward(self, combined_embeddings, mask=None):
+        N = combined_embeddings.shape[0]
+        value_len = key_len = query_len = combined_embeddings.shape[1]
+
+        values = self.values(combined_embeddings).view(N, value_len, self.heads, self.embed_size // self.heads)
+        keys = self.keys(combined_embeddings).view(N, key_len, self.heads, self.embed_size // self.heads)
+        queries = self.queries(combined_embeddings).view(N, query_len, self.heads, self.embed_size // self.heads)
+
+        values = values.transpose(1, 2)
+        keys = keys.transpose(1, 2)
+        queries = queries.transpose(1, 2)
+
+        energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
+
+        attention = torch.softmax(energy / (self.embed_size ** (1 / 2)), dim=3)
+        out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).transpose(1, 2)
+        out = out.contiguous().view(N, query_len, self.embed_size)
+        out = self.fc_out(out)
+        out = self.norm(out + combined_embeddings)
+
+        # Process for action selection
+        e_actions = out[:, 2:].unsqueeze(0)  # Actions embeddings
+        e_state = out.mean(dim=1).unsqueeze(0)  # State representation
+        attended_output, attention_weights = self.scaled_dot_product_attention(e_state, e_actions, e_actions)
+
+        return attended_output, attention_weights
+
+    def scaled_dot_product_attention(self, query, keys, values):
+        d_k = query.size(-1)
+        scores = torch.matmul(query, keys.transpose(-2, -1)) / torch.sqrt(torch.tensor(d_k, dtype=torch.float))
+        weights = F.softmax(scores, dim=-1)
+        output = torch.matmul(weights, values)
+        return output, weights
+
+class Critic(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
+        super(Critic, self).__init__()
+        # Define the critic network architecture
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, 1)  # Output a single value
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        value = self.fc2(x)
+        return value
+
+# Initialize the critic
+critic = Critic(input_dim=1536, hidden_dim=512)  # Adjust the dimensions as needed
+
 class MLPLayer(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, layer_N, use_orthogonal, use_ReLU):
         super(MLPLayer, self).__init__()
@@ -803,6 +868,10 @@ class StrategicLanguageAgent(DiverseDeductiveAgent):
         # attended_output gives you a weighted combination of action embeddings
         print("Attended Output:", attended_output)
         print("Attention Weights:", attention_weights)
+        # Flatten e_state to match input dimensions of the critic
+        e_state_flat = e_state.view(e_state.size(0), -1)
+        predicted_value = critic(e_state_flat)
+        print("Predicted Value from Critic:", predicted_value)
 
-        return output
+        return output  # or any other relevant output
 

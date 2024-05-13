@@ -1,0 +1,28 @@
+2024-05-13 14:39:40,288 INFO PROMPT
+Facts:
+[1] you are player_3, your role is Werewolf, your teammate is player_2.
+[2] current round and phase: night 1.
+[3] remaining players: player_0, player_1, player_2, player_3, player_4, player_5, player_6.
+[4] night 1: your teammate proposed to kill player_None.
+
+Your deduction:
+player_0: Non-Werewolf.
+player_1: Non-Werewolf.
+player_2: Werewolf teammate.
+player_3: Werewolf.
+player_4: Non-Werewolf.
+player_5: Non-Werewolf.
+player_6: Non-Werewolf.
+
+Now it is night 1 round, you and your teammate should choose one player together to kill. As player_3 and a Werewolf, you should first reason about the situation, then choose from the following actions: kill player_0, kill player_1, kill player_4, kill player_5, kill player_6.
+
+You should propose 3 different strategies and provide corresponding reasoning and action. You should only respond in JSON format as described below.
+Response Format:
+{
+    "strategy_i": {
+        "reasoning": "reason about the current situation",
+        "action": "kill player_i"
+    }
+}
+Ensure the response can be parsed by Python json.loads
+
