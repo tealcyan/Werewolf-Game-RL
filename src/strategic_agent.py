@@ -4,8 +4,9 @@ import openai
 import time
 import openai
 from src.agent import VanillaLanguageAgent
-
-
+import torch.optim as optim
+from torch.distributions import Categorical
+from torch.nn.functional import softmax
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -30,7 +31,6 @@ class ActorNetwork(nn.Module):
         self.norm = nn.LayerNorm(embed_size)  # Layer normalization
 
     def forward(self, combined_embeddings, mask=None):
-        self.combined_embedding
         N = combined_embeddings.shape[0]
         value_len = key_len = query_len = combined_embeddings.shape[1]
 
@@ -85,7 +85,10 @@ class ActorNetwork(nn.Module):
         output = torch.matmul(weights, values)
         return output, weights
     def get_state(self):
-        return self.e_states
+        return self.e_state
+
+
+actor_network = ActorNetwork()
 
 class Critic(nn.Module):
     def __init__(self, input_dim, hidden_dim):
@@ -480,9 +483,12 @@ class DiverseDeductiveAgent(DeductiveLanguageAgent):
             {"role": "user", "content": prompt},
         ]
         choice = self.get_choice(messages)
+        print('------------------Action by Agent (returned from .act)-----------------')
         action = self.parse_action(action_candidates[choice])
-
+        print(action)
+        print('------------------Action by Agent (returned from .act)-----------------')
         return action
+
 
     def candidate_format(self):
         available_actions = self.get_available_actions()
@@ -863,38 +869,51 @@ class StrategicLanguageAgent(DiverseDeductiveAgent):
         # Reshape or add a batch dimension if necessary, depending on how your self-attention model expects inputs
         combined_embeddings = combined_embeddings.unsqueeze(0)  # Adding a batch dimension, shape becomes [1, n+1, 1536]
 
-        # Now you can pass this combined_embeddings tensor to your self-attention layer
-        output = self_attention(combined_embeddings, combined_embeddings, combined_embeddings, mask=None)
-        print(output.shape)
-
-        #Average Pooling e_player, e_obs
-        eh_player=output[0][0]
-        eh_obs=output[0][1]
-        # Concatenate embeddings along a new dimension to maintain the distinction
-        combined_embeddings = torch.cat((eh_player.unsqueeze(0), eh_obs.unsqueeze(0)), dim=0)
-
-        # Average pool across the new dimension
-        e_state = combined_embeddings.mean(dim=0).unsqueeze(0).unsqueeze(0)
-        print("State representation after concatenation and pooling:", e_state)
-        print("Shape of the state representation:", e_state.shape)
-
-        #actions and dot products
-        e_actions= output[0,2:].unsqueeze(0)
-        print(f'Actions embeddings Shape: ', e_actions.shape)
-        # Actions as keys and values
-        keys = e_actions  # Shape: [1, N, 1536] where N is the number of actions
-        values = e_actions  # Same as keys
+        # # Now you can pass this combined_embeddings tensor to your self-attention layer
+        # output = self_attention(combined_embeddings, combined_embeddings, combined_embeddings, mask=None)
+        # print(output.shape)
+        #
+        # #Average Pooling e_player, e_obs
+        # eh_player=output[0][0]
+        # eh_obs=output[0][1]
+        # # Concatenate embeddings along a new dimension to maintain the distinction
+        # combined_embeddings = torch.cat((eh_player.unsqueeze(0), eh_obs.unsqueeze(0)), dim=0)
+        #
+        # # Average pool across the new dimension
+        # e_state = combined_embeddings.mean(dim=0).unsqueeze(0).unsqueeze(0)
+        # print("State representation after concatenation and pooling:", e_state)
+        # print("Shape of the state representation:", e_state.shape)
+        #
+        # #actions and dot products
+        # e_actions= output[0,2:].unsqueeze(0)
+        # print(f'Actions embeddings Shape: ', e_actions.shape)
+        # # Actions as keys and values
+        # keys = e_actions  # Shape: [1, N, 1536] where N is the number of actions
+        # values = e_actions  # Same as keys
 
         # Compute attention
-        attended_output, attention_weights = scaled_dot_product_attention(e_state, keys, values)
+        out, probs = actor_network(combined_embeddings)
+        probs = probs.clamp(min=-20, max=20)  # Clamping to avoid overflow or underflow
+        probs = softmax(probs, dim=-1)
+        print('\n\n------------Probabilities--------------\n\n')
+        print('Probabilites: ', probs)
+        print('\n\n------------Probabilities--------------\n\n')
+        dist = Categorical(probs)
+        action = dist.sample()
+        log_prob = dist.log_prob(action)
+        print("Sampled Actions: ", action.item())
+        print("log Prob: ", log_prob.item())
 
-        # attended_output gives you a weighted combination of action embeddings
-        print("Attended Output:", attended_output)
-        print("Attention Weights:", attention_weights)
-        # Flatten e_state to match input dimensions of the critic
-        e_state_flat = e_state.view(e_state.size(0), -1)
-        predicted_value = critic(e_state_flat)
-        print("Predicted Value from Critic:", predicted_value)
+        # # attended_output gives you a weighted combination of action embeddings
+        # print("Attended Output:", attended_output)
+        # print("Attention Weights:", attention_weights)
+        #
+        # predicted_value = critic(e_state_flat)
+        # print("Predicted Value from Critic:", predicted_value)
 
-        return output  # or any other relevant output
+        return action # or any other relevant output
+
+
+    def get_state(self):
+        return actor_network.get_state()
 

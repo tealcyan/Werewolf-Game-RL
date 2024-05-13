@@ -12,6 +12,7 @@ class WerewolfEnvironment(object):
         self.n_seer = 1
         self.n_doctor = 1
         self.n_villager = 3
+
         self.voting_encoding = np.zeros((self.n_player, self.n_player), dtype=int)
         self.roles = np.array(
             ["Werewolf" for _ in range(self.n_werewolf)] +

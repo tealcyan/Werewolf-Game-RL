@@ -1,0 +1,43 @@
+2024-05-13 18:51:03,736 INFO PROMPT
+Facts:
+[1] you are player_4, your role is Werewolf, your teammate is player_5.
+[2] current round and phase: night 1.
+[3] remaining players: player_0, player_1, player_2, player_3, player_4, player_5, player_6.
+
+Your deduction:
+player_0: Non-Werewolf.
+player_1: Non-Werewolf.
+player_2: Non-Werewolf.
+player_3: Non-Werewolf.
+player_4: Werewolf.
+player_5: Werewolf teammate.
+player_6: Non-Werewolf.
+
+Now it is night 1 round, you and your teammate should choose one player together to kill. As player_4 and a Werewolf, you should first reason about the situation, then choose from the following actions: kill player_0, kill player_1, kill player_2, kill player_3, kill player_6.
+
+You should propose 3 different strategies and provide corresponding reasoning and action. You should only respond in JSON format as described below.
+Response Format:
+{
+    "strategy_i": {
+        "reasoning": "reason about the current situation",
+        "action": "kill player_i"
+    }
+}
+Ensure the response can be parsed by Python json.loads
+
+2024-05-13 18:51:07,498 INFO RESPONSE
+{
+    "strategy_1": {
+        "reasoning": "Based on the facts, player_0, player_1, player_2, player_3, and player_6 are all non-Werewolves. Therefore, it would be beneficial for us to eliminate a player who might have a higher chance of being a Seer, Doctor, or Villager. In this case, we should kill player_6.",
+        "action": "kill player_6"
+    },
+    "strategy_2": {
+        "reasoning": "Considering that player_0 and player_1 have been declared as non-Werewolves, it is possible that they are the Seer or the Doctor. To reduce the risk of our Werewolf identity being revealed, we should eliminate one of them. Let's choose player_0 as our target.",
+        "action": "kill player_0"
+    },
+    "strategy_3": {
+        "reasoning": "Since player_4 and player_5 are both Werewolves, it might be advantageous for us to appear less suspicious by targeting a player who has been more vocal during the discussion phase. In this case, player_3 seems to have taken a more active role, so let's eliminate player_3.",
+        "action": "kill player_3"
+    }
+}
+

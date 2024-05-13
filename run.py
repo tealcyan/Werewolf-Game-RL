@@ -12,7 +12,7 @@ sys.path.append(str(ROOT_DIR))
 from src.werewolf_env import WerewolfEnvironment
 from src.agent import VanillaLanguageAgent, OmniscientLanguageAgent
 from src.strategic_agent import DeductiveLanguageAgent, DiverseDeductiveAgent, StrategicLanguageAgent
-
+from torch.distributions import Categorical
 
 def main(args):
     # parse args
@@ -72,10 +72,10 @@ def main(args):
         for idx, agent_obs in enumerate(obs):
             if agent_obs is None:
                 continue
-            print('--------GETTING ALL THE EMBEDDINGS in run.py----------')
-            # actions[idx] = agents[idx].act(agent_obs)
-            print(agents[idx].get_embeddings(agent_obs))
-            print('--------GETTING ALL THE EMBEDDINGS in run.py----------')
+
+            actions[idx] = agents[idx].act(agent_obs)
+            # print(agents[idx].get_embeddings(agent_obs))
+
         obs, rewards, dones, info = env.step(actions)
 
 
