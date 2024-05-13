@@ -1,0 +1,43 @@
+2024-05-13 05:30:58,921 INFO PROMPT
+Facts:
+[1] you are player_1, your role is Doctor.
+[2] current round and phase: night 1.
+[3] remaining players: player_0, player_1, player_2, player_3, player_4, player_5, player_6.
+
+Your deduction:
+player_0: Uncertain.
+player_1: Doctor.
+player_2: Uncertain.
+player_3: Uncertain.
+player_4: Uncertain.
+player_5: Uncertain.
+player_6: Uncertain.
+
+Now it is night 1 round, you should save one player from being killed. As player_1 and a Doctor, you should first reason about the situation, then choose from the following actions: save player_0, save player_1, save player_2, save player_3, save player_4, save player_5, save player_6.
+
+You should propose 3 different strategies and provide corresponding reasoning and action. You should only respond in JSON format as described below.
+Response Format:
+{
+    "strategy_i": {
+        "reasoning": "reason about the current situation",
+       "action": "save player_i"
+    }
+}
+Ensure the response can be parsed by Python json.loads
+
+2024-05-13 05:31:01,497 INFO RESPONSE
+{
+    "strategy_1": {
+        "reasoning": "Based on the information given, I have no reason to suspect any specific player. Therefore, I will save myself, player_1, as a precautionary measure.",
+        "action": "save player_1"
+    },
+    "strategy_2": {
+        "reasoning": "Since I have no information about the other players' roles, I will choose to save player_0. It is a random choice, but it might help us keep a potential ally alive.",
+        "action": "save player_0"
+    },
+    "strategy_3": {
+        "reasoning": "Although I have no information about the other players' roles, I will save player_6 as a strategic move. By saving the last player in the order, we can potentially maximize the chances of keeping a crucial role alive.",
+        "action": "save player_6"
+    }
+}
+

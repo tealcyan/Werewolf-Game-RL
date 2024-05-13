@@ -2,13 +2,106 @@ import json
 import numpy as np
 import openai
 import time
-from openai import OpenAI
+import openai
 from src.agent import VanillaLanguageAgent
-client = OpenAI()
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+def scaled_dot_product_attention(query, keys, values):
+    d_k = query.size(-1)  # Dimension of the keys
+    scores = torch.matmul(query, keys.transpose(-2, -1)) / torch.sqrt(torch.tensor(d_k, dtype=torch.float))  # Corrected line
+    weights = F.softmax(scores, dim=-1)  # Normalize the scores to get attention weights
+    output = torch.matmul(weights, values)  # Weighted sum of the values
+    return output, weights
+class MLPLayer(nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_dim, layer_N, use_orthogonal, use_ReLU):
+        super(MLPLayer, self).__init__()
+        self._layer_N = layer_N
+
+        # Activation and initialization settings
+        active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
+        init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
+        gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
+
+        # Define layers
+        self.fc1 = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim), active_func, nn.LayerNorm(hidden_dim))
+        self.fc2 = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim), active_func, nn.LayerNorm(hidden_dim)
+            ) for _ in range(layer_N - 1)
+        ])
+        self.fc3 = nn.Sequential(
+            nn.Linear(hidden_dim, output_dim), active_func, nn.LayerNorm(output_dim))
+
+        # Apply initialization
+        self.apply(lambda m: self.init_weights(m, init_method, gain))
+
+    def init_weights(self, module, init_method, gain):
+        """ Initialize weights of the neural network """
+        if isinstance(module, nn.Linear):
+            init_method(module.weight, gain=gain)
+            if module.bias is not None:
+                nn.init.constant_(module.bias, 0)
+    def forward(self, x):
+        x = self.fc1(x)
+        for layer in self.fc2:
+            x = layer(x)
+        x = self.fc3(x)
+        return x
+
+
+player_encoder = MLPLayer(input_dim=253, output_dim=1536, hidden_dim=512, layer_N=3, use_orthogonal=True, use_ReLU=True)
+
+class SelfAttentionLayer(nn.Module):
+    def __init__(self):
+        super(SelfAttentionLayer, self).__init__()
+        self.embed_size = 1536
+        self.heads = 12
+        self.values = nn.Linear(self.embed_size, self.embed_size, bias=False)
+        self.keys = nn.Linear(self.embed_size, self.embed_size, bias=False)
+        self.queries = nn.Linear(self.embed_size, self.embed_size, bias=False)
+        self.fc_out = nn.Linear(self.embed_size, self.embed_size)
+        self.norm = nn.LayerNorm(self.embed_size)  # Layer normalization
+
+    def forward(self, values, keys, query, mask=None):
+        N = query.shape[0]
+        value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
+
+        # Split the embedding into self.heads different pieces
+        values = self.values(values).view(N, value_len, self.heads, self.embed_size // self.heads)
+        keys = self.keys(keys).view(N, key_len, self.heads, self.embed_size // self.heads)
+        queries = self.queries(query).view(N, query_len, self.heads, self.embed_size // self.heads)
+
+        values = values.transpose(1, 2)  # (N, heads, value_len, head_dim)
+        keys = keys.transpose(1, 2)  # (N, heads, key_len, head_dim)
+        queries = queries.transpose(1, 2)  # (N, heads, query_len, head_dim)
+
+        energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
+
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
+
+        attention = torch.softmax(energy / (self.embed_size ** (1 / 2)), dim=3)
+
+        out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).transpose(1, 2)
+        out = out.contiguous().view(N, query_len, self.embed_size)
+
+        # Apply a fully connected layer
+        out = self.fc_out(out)
+
+        # Add the original query (residual connection) and apply layer normalization
+        out = self.norm(out + query)
+
+        return out
+
+self_attention = SelfAttentionLayer()
+
 
 def get_embedding(text, model="text-embedding-ada-002"):
    text = text.replace("\n", " ")
-   return client.embeddings.create(input = [text], model=model).data[0].embedding
+   return openai.Embedding.create(input = [text], model=model).data[0].embedding
 
 MAX_ERROR = 5
 
@@ -33,6 +126,7 @@ class DeductiveLanguageAgent(VanillaLanguageAgent):
         
         self.add_history(obs["new_history"])
         if self.n_round == 1 and self.status == "night":
+            print('--------------I AM PASSING-------------')
             pass
         else:
             deduction_prompt = self.organize_information() + "\n\n" + self.deduction_result("previous") + "\n\n" + self.deduction_format()
@@ -143,7 +237,7 @@ class DeductiveLanguageAgent(VanillaLanguageAgent):
 
     def get_deduction(self, messages):
         self.logger.info(f"PROMPT\n{messages[-1]['content']}\n")
-
+        print('--------GET DEDUCTION CALLED----')
         result = None
         available_actions = self.get_available_actions()
         n_error = 0
@@ -200,6 +294,10 @@ class DeductiveLanguageAgent(VanillaLanguageAgent):
                 n_error += 1
         if result is not None:
             self.logger.info(f"RESPONSE\n{response.choices[0].message.content}\n")
+        print('-------CHECKING WHAT DEDUCTIONS WERE MADE---------')
+        print(self.deduction)
+        print('-------CHECKING WHAT DEDUCTIONS WERE MADE---------')
+
 
         return result
 
@@ -253,7 +351,6 @@ class DiverseDeductiveAgent(DeductiveLanguageAgent):
         super().__init__(model, temperature, log_file)
 
         self.n_candidate = n_candidate
-
     def act(self, obs):
         self.id = obs["id"]
         self.role = obs["role"]
@@ -283,6 +380,10 @@ class DiverseDeductiveAgent(DeductiveLanguageAgent):
             {"role": "user", "content": candidate_prompt},
         ]
         action_candidates = self.get_candidates(candidate_messages)
+        self.current_action_candidates = action_candidates
+
+
+
 
         # get action
         prompt = self.organize_information() + "\n\n" + self.deduction_result() + "\n\n" + self.choice_format(action_candidates)
@@ -555,12 +656,13 @@ class DiverseDeductiveAgent(DeductiveLanguageAgent):
         return choice
 
 
+
 class StrategicLanguageAgent(DiverseDeductiveAgent):
     def __init__(self, model="gpt-3.5-turbo-0613", temperature=0.7, log_file=None, n_candidate=3):
         super().__init__(model, temperature, log_file, n_candidate)
-        self.all_roles = np.array(["Werewolf", "Seer", "Doctor", "Villager", "Unknown"])
+        self.all_roles = np.array(["Werewolf", "Seer", "Doctor", "Villager", "Uncertain"])
         self.all_phase = np.array(["night", "discussion", "voting"])
-
+        #TODO
         self.round_info = [  # update in game.
             {
                 "secret_action": np.zeros(7),
@@ -568,18 +670,6 @@ class StrategicLanguageAgent(DiverseDeductiveAgent):
                 "voting": np.zeros(49),
             } for _ in range(3)
         ]
-        self.deduction = None
-        """Example deduction:
-        self.deduction = {
-            "player_0": {"role": "Seer", "confidence": 10},
-            "player_1": {"role": "Unknown", "confidence": 6},
-            "player_2": {"role": "Unknown", "confidence": 6},
-            "player_3": {"role": "Unknown", "confidence": 6},
-            "player_4": {"role": "Unknown", "confidence": 6},
-            "player_5": {"role": "Werewolf", "confidence": 9},
-            "player_6": {"role": "Unknown", "confidence": 6},
-        }
-        """
 
     def player_embedding(self):
         player_id = np.eye(7)[self.id]
@@ -600,8 +690,8 @@ class StrategicLanguageAgent(DiverseDeductiveAgent):
                 role = np.eye(5)[np.where(self.all_roles == self.role)[0][0]]
                 confidence = np.array([10])
             else:
-                role = np.eye(5)[np.where(self.all_roles == self.deduction[f"player_{i}"]["role"])[0][0]]
-                confidence = np.array([self.deduction[f"player_{i}"]["confidence"]])
+                role = np.eye(5)[np.where(self.all_roles == self.deduction[i]["role"])[0][0]]
+                confidence = np.array([self.deduction[i]["confidence"]])
             deduction_embedding.extend([role, confidence])
         deduction_embedding = np.concatenate(deduction_embedding)
 
@@ -616,14 +706,103 @@ class StrategicLanguageAgent(DiverseDeductiveAgent):
         ])
         return player_embedding
     def get_language_observation_embedding(self):
-        return get_embedding(self.language_observation)
+        print('-------Observation Embedding----------')
+        print(self.language_observation)
+        print('-------Observation Embedding----------')
+        if self.language_observation:
+            return torch.tensor(get_embedding(self.language_observation))
+        else:
+            return torch.zeros(1536)
     def get_language_action_embedding(self):
         action_embeddings=[]
-        for action in self.current_action_candidates:
-            action_s= action['reasoning']+ ' ' + action['action']
+        actions=self.current_action_candidates
+
+        for action in actions:
+            action_s= actions[action]['reasoning']+ ' ' + actions[action]['action']
             e_action=get_embedding(action_s)
+
             action_embeddings.append(e_action)
+
         return action_embeddings
 
+    def get_embeddings(self, obs):
+        self.id = obs["id"]
+        self.role = obs["role"]
+        self.teammate = obs["teammate"]
+        self.n_round = obs["n_round"]
+        self.status = obs["status"]
+        self.alive = obs["alive"]
+        self.seen_players = obs["seen_players"]
 
+        # deductive reasoning
+        self.add_history(obs["new_history"])
+        if self.n_round == 1 and self.status == "night":
+            print('--------------I AM PASSING-------------')
+            pass
+        else:
+            deduction_prompt = self.organize_information() + "\n\n" + self.deduction_result(
+                "previous") + "\n\n" + self.deduction_format()
+            deduction_messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": deduction_prompt},
+            ]
+            self.get_deduction(deduction_messages)
+            self.update_history()
+
+        # generate action candidates
+        print('----------DEDUCTION RESULT-------------')
+        print(self.deduction)
+        print('----------DEDUCTION RESULT-------------')
+        candidate_prompt = self.organize_information() + "\n\n" + self.deduction_result() + "\n\n" + self.candidate_format()
+        candidate_messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": candidate_prompt},
+        ]
+        action_candidates = self.get_candidates(candidate_messages)
+
+        self.current_action_candidates = action_candidates
+        # Assuming self.player_embedding() returns a single embedding of size [1, 1535]
+        # and self.get_language_action_embedding() returns a tensor of size [n, 1536]
+
+        player_embedding = player_encoder(torch.tensor(self.player_embedding(), dtype=torch.float32)).unsqueeze(0)
+        obs_embedding = self.get_language_observation_embedding().unsqueeze(0)
+        language_action_embeddings = torch.tensor(self.get_language_action_embedding())
+
+        # Concatenate along the sequence dimension if these embeddings represent a single sequence
+        combined_embeddings = torch.cat((player_embedding, obs_embedding, language_action_embeddings), dim=0)
+        # Now combined_embeddings has a shape of [n+1, 1536]
+
+        # Reshape or add a batch dimension if necessary, depending on how your self-attention model expects inputs
+        combined_embeddings = combined_embeddings.unsqueeze(0)  # Adding a batch dimension, shape becomes [1, n+1, 1536]
+
+        # Now you can pass this combined_embeddings tensor to your self-attention layer
+        output = self_attention(combined_embeddings, combined_embeddings, combined_embeddings, mask=None)
+        print(output.shape)
+
+        #Average Pooling e_player, e_obs
+        eh_player=output[0][0]
+        eh_obs=output[0][1]
+        # Concatenate embeddings along a new dimension to maintain the distinction
+        combined_embeddings = torch.cat((eh_player.unsqueeze(0), eh_obs.unsqueeze(0)), dim=0)
+
+        # Average pool across the new dimension
+        e_state = combined_embeddings.mean(dim=0).unsqueeze(0).unsqueeze(0)
+        print("State representation after concatenation and pooling:", e_state)
+        print("Shape of the state representation:", e_state.shape)
+
+        #actions and dot products
+        e_actions= output[0,2:].unsqueeze(0)
+        print(f'Actions embeddings Shape: ', e_actions.shape)
+        # Actions as keys and values
+        keys = e_actions  # Shape: [1, N, 1536] where N is the number of actions
+        values = e_actions  # Same as keys
+
+        # Compute attention
+        attended_output, attention_weights = scaled_dot_product_attention(e_state, keys, values)
+
+        # attended_output gives you a weighted combination of action embeddings
+        print("Attended Output:", attended_output)
+        print("Attention Weights:", attention_weights)
+
+        return output
 

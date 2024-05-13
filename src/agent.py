@@ -337,6 +337,7 @@ class OmniscientLanguageAgent(VanillaLanguageAgent):
         return action
 
     def organize_information(self, history):
+        print('-------------ORGANIZE INFORMATION CALLLED---------------')
         facts = []
         truths = []
         deceptions = []
@@ -405,4 +406,6 @@ class OmniscientLanguageAgent(VanillaLanguageAgent):
             else:
                 prompt += f"\nplayer_{i}: must be a {role}."
         self.language_observation=prompt
+        print(prompt)
+        print('-------------ORGANIZE INFORMATION CALLLED---------------')
         return prompt

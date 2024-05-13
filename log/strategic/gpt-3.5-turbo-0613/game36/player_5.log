@@ -1,0 +1,27 @@
+2024-05-13 05:31:02,756 INFO PROMPT
+Facts:
+[1] you are player_5, your role is Seer.
+[2] current round and phase: night 1.
+[3] remaining players: player_0, player_1, player_2, player_3, player_4, player_5, player_6.
+
+Your deduction:
+player_0: Uncertain.
+player_1: Uncertain.
+player_2: Uncertain.
+player_3: Uncertain.
+player_4: Uncertain.
+player_5: Seer.
+player_6: Uncertain.
+
+Now it is night 1 round, you should choose one player to see if they are a Werewolf. As player_5 and a Seer, you should first reason about the situation, then choose from the following actions: see player_0, see player_1, see player_2, see player_3, see player_4, see player_6.
+
+You should propose 3 different strategies and provide corresponding reasoning and action. You should only respond in JSON format as described below.
+Response Format:
+{
+    "strategy_i": {
+        "reasoning": "reason about the current situation",
+        "action": "see player_i"
+    }
+}
+Ensure the response can be parsed by Python json.loads
+

@@ -1,0 +1,43 @@
+2024-05-13 05:01:59,163 INFO PROMPT
+Facts:
+[1] you are player_2, your role is Werewolf, your teammate is player_6.
+[2] current round and phase: night 1.
+[3] remaining players: player_0, player_1, player_2, player_3, player_4, player_5, player_6.
+
+Your deduction:
+player_0: Non-Werewolf.
+player_1: Non-Werewolf.
+player_2: Werewolf.
+player_3: Non-Werewolf.
+player_4: Non-Werewolf.
+player_5: Non-Werewolf.
+player_6: Werewolf teammate.
+
+Now it is night 1 round, you and your teammate should choose one player together to kill. As player_2 and a Werewolf, you should first reason about the situation, then choose from the following actions: kill player_0, kill player_1, kill player_3, kill player_4, kill player_5.
+
+You should propose 3 different strategies and provide corresponding reasoning and action. You should only respond in JSON format as described below.
+Response Format:
+{
+    "strategy_i": {
+        "reasoning": "reason about the current situation",
+        "action": "kill player_i"
+    }
+}
+Ensure the response can be parsed by Python json.loads
+
+2024-05-13 05:02:06,069 INFO RESPONSE
+{
+    "strategy_1": {
+        "reasoning": "Since player_0 and player_1 are most likely non-Werewolves based on deduction, it might be beneficial to eliminate one of them to create confusion and suspicion among the remaining players. This can potentially divert attention away from us, the actual Werewolves. Therefore, we should kill player_0.",
+        "action": "kill player_0"
+    },
+    "strategy_2": {
+        "reasoning": "Player_3 seems to be a potential threat as they might have the role of Seer or Doctor who can potentially reveal our identities or save other players. To eliminate this risk, we should kill player_3.",
+        "action": "kill player_3"
+    },
+    "strategy_3": {
+        "reasoning": "Player_4 has been relatively quiet during the discussion phase, which could indicate that they are trying to hide something or observe the situation without drawing attention. It is always a good strategy to eliminate players who are playing passively in the early stages of the game. Therefore, we should kill player_4.",
+        "action": "kill player_4"
+    }
+}
+

@@ -1,32 +1,41 @@
-import numpy as np
+import torch
 import torch.nn as nn
-
-from onpolicy.algorithms.utils.util import init
-
+import torch.nn.functional as F
 
 class MLPLayer(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, layer_N, use_orthogonal, use_ReLU):
         super(MLPLayer, self).__init__()
         self._layer_N = layer_N
 
+        # Activation and initialization settings
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
         gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
 
-        def init_(m):
-            return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
-
+        # Define layers
         self.fc1 = nn.Sequential(
-            init_(nn.Linear(input_dim, hidden_dim)), active_func, nn.LayerNorm(hidden_dim))
-        self.fc2 = nn.ModuleList([nn.Sequential(init_(
-            nn.Linear(hidden_dim, hidden_dim)), active_func, nn.LayerNorm(hidden_dim)) for i in range(self._layer_N - 1)])
+            nn.Linear(input_dim, hidden_dim), active_func, nn.LayerNorm(hidden_dim))
+        self.fc2 = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim), active_func, nn.LayerNorm(hidden_dim)
+            ) for _ in range(layer_N - 1)
+        ])
         self.fc3 = nn.Sequential(
-            init_(nn.Linear(hidden_dim, output_dim)), active_func, nn.LayerNorm(output_dim))
+            nn.Linear(hidden_dim, output_dim), active_func, nn.LayerNorm(output_dim))
+
+        # Apply initialization
+        self.apply(lambda m: self.init_(m, init_method, gain))
+
+    def init_(self, m, init_method, gain):
+        if isinstance(m, nn.Linear):
+            init_method(m.weight, gain=gain)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         x = self.fc1(x)
-        for i in range(self._layer_N - 1):
-            x = self.fc2[i](x)
+        for layer in self.fc2:
+            x = layer(x)
         x = self.fc3(x)
         return x
     

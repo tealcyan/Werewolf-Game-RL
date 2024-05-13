@@ -4,10 +4,10 @@ import torch.nn.functional as F
 
 
 class SelfAttentionLayer(nn.Module):
-    def __init__(self, embed_size, heads):
-        super(SelfAttentionLayer, self).__init__()
-        self.embed_size = embed_size
-        self.heads = heads
+    def __init__(self):
+        super(SelfAttentionLayer, self).__init__(1)
+        self.embed_size = 1536
+        self.heads = 12
         self.values = nn.Linear(embed_size, embed_size, bias=False)
         self.keys = nn.Linear(embed_size, embed_size, bias=False)
         self.queries = nn.Linear(embed_size, embed_size, bias=False)
@@ -44,8 +44,9 @@ class SelfAttentionLayer(nn.Module):
 embed_size = 128 * 12  # Total embedding size 1536
 heads = 12
 
-# # Example initialization and forward pass
-# self_attention = SelfAttentionLayer(embed_size, heads)
-# x = torch.rand(64, 10, embed_size)  # Example input (batch_size, sequence_length, embed_size)
-# mask = None  # Example mask, replace with actual mask as needed
-# output = self_attention(x, x, x, mask)
+# Example initialization and forward pass
+self_attention = SelfAttentionLayer()
+x = torch.rand(64, 10, embed_size)  # Example input (batch_size, sequence_length, embed_size)
+mask = None  # Example mask, replace with actual mask as needed
+output = self_attention(x, x, x, mask)
+print(len(output))

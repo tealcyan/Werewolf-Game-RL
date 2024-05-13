@@ -5,8 +5,9 @@ import numpy as np
 class WerewolfEnvironment(object):
 
     def __init__(self):
-        self.actually_killed = None
         self.n_player = 7
+        self.rewards=np.zeros(self.n_player)
+        self.actually_killed = None
         self.n_werewolf = 2
         self.n_seer = 1
         self.n_doctor = 1
@@ -116,11 +117,13 @@ class WerewolfEnvironment(object):
                         night_info = f"player_{idx} chose to kill player_{self.kill_target}."
                     elif self.roles[idx] == "Seer":
                         if self.roles[self.see_target] == "Werewolf":
+                            self.rewards[self.roles == "Seer"] += 2
                             self.seen_players[self.see_target] = "Werewolf"
                             secret_action = f"you saw player_{self.see_target} is a Werewolf."
                             night_info = f"player_{idx} saw player_{self.see_target} is a Werewolf."
                         else:
                             self.seen_players[self.see_target] = "Non-Werewolf"
+                            self.rewards[self.roles == "Seer"] -= 2
                             secret_action = f"you saw player_{self.see_target} is not a Werewolf."
                             night_info = f"player_{idx} saw player_{self.see_target} is not a Werewolf."
                     elif self.roles[idx] == "Doctor":
@@ -132,10 +135,19 @@ class WerewolfEnvironment(object):
 
                 # apply actions and add announcement to histories
                 if self.kill_target != self.save_target:
+                    #reward for successfully killing
+                    self.rewards[self.roles == "Werewolf"] += 5
+
                     self.alive[self.kill_target] = False
                     self.actually_killed = self.kill_target
                     announcement = f"player_{self.kill_target} was killed last night."
+                    # reward for not successfully saving
+                    self.rewards[self.roles == "Doctor"] -= 5
                 else:
+                    # reward for not successfully killing
+                    self.rewards[self.roles == "Werewolf"] -= 5
+                    # reward for successfully saving
+                    self.rewards[self.roles == "Doctor"] +=5
                     announcement = f"no player was killed last night."
                 for idx in range(self.n_player):
                     if self.alive[idx] or (idx == self.kill_target):
@@ -175,6 +187,14 @@ class WerewolfEnvironment(object):
             for idx, action in enumerate(actions):
                 if action is None:
                     continue
+                #Individual voting rewards
+                if self.roles[action] == "Werewolf" and self.roles[idx] != "Werewolf":
+                    self.rewards[idx] += 1
+                    self.rewards[action] -= 1
+                if self.roles[action] != "Werewolf" and self.roles[idx] != "Werewolf":
+                    self.rewards[idx] -= 1
+                    self.rewards[self.roles == "Werewolf"] += 1
+
 
                 if self.alive[idx]:
                     self.voting_encoding[idx, action] = 1
@@ -185,10 +205,18 @@ class WerewolfEnvironment(object):
             if np.sum(cnt_vote[:-1]) == 0:
                 # all players choose not to vote
                 voting_result = f"no player was eliminated."
+
             else:
                 voting_target = np.random.choice(np.where(cnt_vote[:-1] == np.max(cnt_vote[:-1]))[0])
                 self.alive[voting_target] = False
                 voting_result = f"player_{voting_target} had the most votes and was eliminated."
+                if self.roles[self.see_target] == "Werewolf":
+                    self.rewards[self.roles == "Werewolf"] -= 5
+                    self.rewards[self.roles != "Werewolf"] += 5
+                elif  self.roles[self.see_target] != "Werewolf":
+                    self.rewards[self.roles == "Werewolf"] += 5
+                    self.rewards[self.roles != "Werewolf"] -= 5
+
 
             # add voting to obs and info
             for idx in range(self.n_player):
@@ -226,29 +254,32 @@ class WerewolfEnvironment(object):
         alive_villager = np.sum(self.roles[self.alive] != "Werewolf")
         if alive_werewolf > alive_villager:
             # the Werewolves win the game
-            rewards = 2 * (self.roles == "Werewolf") - 1
+            self.rewards[self.roles == "Werewolf"] += 100
+            self.rewards[self.roles != "Werewolf"] -= 100
             dones = np.ones(self.n_player, dtype=bool)
             self.info["winners"] = "the Werewolves"
         elif alive_werewolf == 0:
             # the Villagers win the game
-            rewards = 2 * (self.roles != "Werewolf") - 1
+            self.rewards[self.roles != "Werewolf"] += 100
+            self.rewards[self.roles == "Werewolf"] -= 100
             dones = np.ones(self.n_player, dtype=bool)
             self.info["winners"] = "the Villagers"
         elif self.n_round >= 10:
             # randomly choose the winner
             self.info["winners"] = np.random.choice(["the Werewolves", "the Villagers"])
             if self.info["winners"] == "the Werewolves":
-                rewards = 2 * (self.roles == "Werewolf") - 1
+                self.rewards[self.roles == "Werewolf"] += 100
+                self.rewards[self.roles != "Werewolf"] -= 100
                 dones = np.ones(self.n_player, dtype=bool)
             else:
-                rewards = 2 * (self.roles != "Werewolf") - 1
+                self.rewards[self.roles != "Werewolf"] += 100
+                self.rewards[self.roles == "Werewolf"] -= 100
                 dones = np.ones(self.n_player, dtype=bool)
         else:
-            # game continues
-            rewards = np.zeros(self.n_player)
+
             dones = (self.alive == False)
 
-        return self.generate_obs(), rewards, dones, self.generate_info()
+        return self.generate_obs(), self.rewards, dones, self.generate_info()
 
     def generate_obs(self):
         obs = [None for _ in range(self.n_player)]

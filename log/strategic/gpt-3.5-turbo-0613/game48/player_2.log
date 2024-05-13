@@ -1,0 +1,43 @@
+2024-05-13 06:26:54,526 INFO PROMPT
+Facts:
+[1] you are player_2, your role is Werewolf, your teammate is player_6.
+[2] current round and phase: night 1.
+[3] remaining players: player_0, player_1, player_2, player_3, player_4, player_5, player_6.
+
+Your deduction:
+player_0: Non-Werewolf.
+player_1: Non-Werewolf.
+player_2: Werewolf.
+player_3: Non-Werewolf.
+player_4: Non-Werewolf.
+player_5: Non-Werewolf.
+player_6: Werewolf teammate.
+
+Now it is night 1 round, you and your teammate should choose one player together to kill. As player_2 and a Werewolf, you should first reason about the situation, then choose from the following actions: kill player_0, kill player_1, kill player_3, kill player_4, kill player_5.
+
+You should propose 3 different strategies and provide corresponding reasoning and action. You should only respond in JSON format as described below.
+Response Format:
+{
+    "strategy_i": {
+        "reasoning": "reason about the current situation",
+        "action": "kill player_i"
+    }
+}
+Ensure the response can be parsed by Python json.loads
+
+2024-05-13 06:26:57,262 INFO RESPONSE
+{
+    "strategy_1": {
+        "reasoning": "Since player_0 is a Villager, eliminating them will reduce the number of potential threats to the Werewolves. Killing player_0 is a strategic move to maintain the advantage for the Werewolves.",
+        "action": "kill player_0"
+    },
+    "strategy_2": {
+        "reasoning": "If player_1 is the Seer, they may have had a chance to identify one of the Werewolves. Eliminating player_1 can prevent them from revealing the Werewolves' identities to the other players.",
+        "action": "kill player_1"
+    },
+    "strategy_3": {
+        "reasoning": "Player_3 is not suspected to be a Werewolf based on the deduction so far. Killing player_3 can create confusion and uncertainty among the other players, making it harder for them to identify the actual Werewolves.",
+        "action": "kill player_3"
+    }
+}
+

@@ -11,14 +11,14 @@ sys.path.append(str(ROOT_DIR))
 
 from src.werewolf_env import WerewolfEnvironment
 from src.agent import VanillaLanguageAgent, OmniscientLanguageAgent
-from src.strategic_agent import DeductiveLanguageAgent, DiverseDeductiveAgent
+from src.strategic_agent import DeductiveLanguageAgent, DiverseDeductiveAgent, StrategicLanguageAgent
 
 
 def main(args):
     # parse args
     parser = argparse.ArgumentParser(description="werewolf run", formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--name", type=str, default="vanilla", 
-                        choices=["vanilla", "omniscient", "deductive", "diverse"],
+                        choices=["vanilla", "omniscient", "deductive", "diverse", "strategic"],
                         help="name of the log directory, default=vanilla")
     parser.add_argument("--model", type=str, default="gpt-3.5-turbo-0613", 
                         choices=["gpt-3.5-turbo", "gpt-3.5-turbo-0613", "gpt-3.5-turbo-16k", "gpt-3.5-turbo-16k-0613", "gpt-4"], 
@@ -56,6 +56,8 @@ def main(args):
         agents = [DeductiveLanguageAgent(args.model, args.temperature, f"{log_dir}/player_{i}.log") for i in range(n_player)]
     elif args.name == "diverse":
         agents = [DiverseDeductiveAgent(args.model, args.temperature, f"{log_dir}/player_{i}.log") for i in range(n_player)]
+    elif args.name == "strategic":
+        agents = [StrategicLanguageAgent(args.model, args.temperature, f"{log_dir}/player_{i}.log") for i in range(n_player)]
     else:
         raise NotImplementedError
 
@@ -70,8 +72,12 @@ def main(args):
         for idx, agent_obs in enumerate(obs):
             if agent_obs is None:
                 continue
-            actions[idx] = agents[idx].act(agent_obs)
+            print('--------GETTING ALL THE EMBEDDINGS in run.py----------')
+            print(agents[idx].get_embeddings(agent_obs))
+            print('--------GETTING ALL THE EMBEDDINGS in run.py----------')
         obs, rewards, dones, info = env.step(actions)
+
+
         done = np.all(dones)
 
         # log info
