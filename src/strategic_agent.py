@@ -20,6 +20,7 @@ def scaled_dot_product_attention(query, keys, values):
 class ActorNetwork(nn.Module):
     def __init__(self, embed_size=1536, heads=12):
         super(ActorNetwork, self).__init__()
+        self.e_state=0
         self.embed_size = embed_size
         self.heads = heads
         self.values = nn.Linear(embed_size, embed_size, bias=False)
@@ -29,6 +30,7 @@ class ActorNetwork(nn.Module):
         self.norm = nn.LayerNorm(embed_size)  # Layer normalization
 
     def forward(self, combined_embeddings, mask=None):
+        self.combined_embedding
         N = combined_embeddings.shape[0]
         value_len = key_len = query_len = combined_embeddings.shape[1]
 
@@ -49,6 +51,25 @@ class ActorNetwork(nn.Module):
         out = out.contiguous().view(N, query_len, self.embed_size)
         out = self.fc_out(out)
         out = self.norm(out + combined_embeddings)
+        # Average Pooling e_player, e_obs
+        eh_player = out[0][0]
+        eh_obs = out[0][1]
+        # Concatenate embeddings along a new dimension to maintain the distinction
+        combined_embeddings = torch.cat((eh_player.unsqueeze(0), eh_obs.unsqueeze(0)), dim=0)
+
+        # Average pool across the new dimension
+        e_state = combined_embeddings.mean(dim=0).unsqueeze(0).unsqueeze(0)
+        print("State representation after concatenation and pooling:", e_state)
+        print("Shape of the state representation:", e_state.shape)
+
+        # actions and dot products
+        e_actions = out[0, 2:].unsqueeze(0)
+        print(f'Actions embeddings Shape: ', e_actions.shape)
+
+
+        # Flatten e_state to match input dimensions of the critic
+        e_state_flat = e_state.view(e_state.size(0), -1)
+        self.e_state=e_state_flat
 
         # Process for action selection
         e_actions = out[:, 2:].unsqueeze(0)  # Actions embeddings
@@ -63,6 +84,8 @@ class ActorNetwork(nn.Module):
         weights = F.softmax(scores, dim=-1)
         output = torch.matmul(weights, values)
         return output, weights
+    def get_state(self):
+        return self.e_states
 
 class Critic(nn.Module):
     def __init__(self, input_dim, hidden_dim):
